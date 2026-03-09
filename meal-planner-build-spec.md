@@ -54,10 +54,10 @@ Rules:
 ## 3. Core Features
 
 ### Feature 1: User Onboarding & Preferences
-- **What it does:** Allows users to set their dietary preferences, disliked ingredients, and default time-effort levels (e.g., "Quick Weekday", "Long Weekend").
-- **Inputs:** Form selections (checkboxes, radio buttons, multi-select).
+- **What it does:** Allows users to set their dietary preferences, disliked ingredients, default time-effort levels, and family size (portion count).
+- **Inputs:** Form selections (checkboxes, radio buttons, multi-select, number input for family size).
 - **Outputs:** Saves user profile data to the database; updates global state.
-- **Edge cases to handle:** Empty form submissions, skipping optional steps.
+- **Edge cases to handle:** Empty form submissions, skipping optional steps, family size less than 1.
 
 ### Feature 2: Recipe Suggestion Engine
 - **What it does:** Generates a weekly dinner plan by filtering a recipe database matching user preferences and effort levels.
@@ -72,9 +72,9 @@ Rules:
 - **Edge cases to handle:** Unassigning a meal, moving a meal to a different day, handling empty days.
 
 ### Feature 4: Smart Shopping List
-- **What it does:** Aggregates all ingredients from the planned recipes into a single checklist, categorized by grocery aisle (e.g., Produce, Dairy).
-- **Inputs:** Planned recipes for the week; manual user additions (e.g., "Milk", "Paper Towels").
-- **Outputs:** Categorized checklist. Users can check off items they already have to hide them.
+- **What it does:** Aggregates all ingredients from the planned recipes into a single checklist, categorized by grocery aisle (e.g., Produce, Dairy). It multiplies the base recipe quantities by the user's saved family size.
+- **Inputs:** Planned recipes for the week; manual user additions (e.g., "Milk", "Paper Towels"); user's family size setting.
+- **Outputs:** Categorized, quantity-scaled checklist. Users can check off items they already have to hide them.
 - **Edge cases to handle:** Duplicate ingredients across two recipes (combine quantities if possible), manually deleting recipe-linked ingredients.
 
 ### Feature 5: Authentication & Persistence

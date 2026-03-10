@@ -177,54 +177,59 @@ export default function RecipeDiscovery() {
     <div className="space-y-8 max-w-6xl mx-auto">
 
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-100 pb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">Recipes</h1>
-          <p className="text-gray-500">
-            {recipes.length > 0
-              ? `${recipes.length} recipe${recipes.length === 1 ? '' : 's'} in your library`
-              : 'Your personal recipe library'}
-          </p>
-        </div>
+      <div className="border-b border-gray-100 pb-6 space-y-4">
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          {/* Tab switcher */}
-          <div className="flex bg-gray-100 p-1 rounded-lg flex-1 md:flex-none">
-            {([
-              { key: 'All', label: 'My Library' },
-              { key: 'FindOnline', label: 'Find Online' },
-              { key: 'Recommended', label: 'Recommended' },
-            ] as { key: TabFilter; label: string }[]).map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={cn(
-                  'flex-1 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                  activeTab === key ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                )}
-              >
-                {label}
-              </button>
-            ))}
+        {/* Title row + action buttons */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">Recipes</h1>
+            <p className="text-gray-500">
+              {recipes.length > 0
+                ? `${recipes.length} recipe${recipes.length === 1 ? '' : 's'} in your library`
+                : 'Your personal recipe library'}
+            </p>
           </div>
 
-          {/* Scan Recipe button */}
-          <button
-            onClick={() => setShowPhotoUpload(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 shrink-0"
-          >
-            <Camera size={16} aria-hidden="true" />
-            <span className="hidden sm:inline">Scan</span>
-          </button>
+          {/* Action buttons — always top-right, never compete with tabs */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowPhotoUpload(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              aria-label="Scan a recipe"
+            >
+              <Camera size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">Scan</span>
+            </button>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            >
+              <Plus size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">Add Recipe</span>
+              <span className="sm:hidden">Add</span>
+            </button>
+          </div>
+        </div>
 
-          {/* Add Recipe button */}
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 shrink-0"
-          >
-            <Plus size={16} aria-hidden="true" />
-            Add Recipe
-          </button>
+        {/* Tab switcher — full width on all screen sizes */}
+        <div className="flex bg-gray-100 p-1 rounded-lg">
+          {([
+            { key: 'All', label: 'My Library', shortLabel: 'Library' },
+            { key: 'FindOnline', label: 'Find Online', shortLabel: 'Online' },
+            { key: 'Recommended', label: 'Recommended', shortLabel: 'Picks' },
+          ] as { key: TabFilter; label: string; shortLabel: string }[]).map(({ key, label, shortLabel }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={cn(
+                'flex-1 py-2 px-1 rounded-md text-sm font-medium transition-colors',
+                activeTab === key ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              )}
+            >
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">{shortLabel}</span>
+            </button>
+          ))}
         </div>
       </div>
 

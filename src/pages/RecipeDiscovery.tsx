@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, Plus, ChefHat, Camera, Globe, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, Plus, ChefHat, Camera, Globe, Loader2, Sparkles, RefreshCw } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useRecipes } from '../hooks/useRecipes';
 import { useUserPreferencesStore } from '../lib/store';
@@ -21,8 +21,8 @@ type TabFilter = 'All' | 'FindOnline' | 'Recommended';
 type OnlineResult = Omit<Recipe, 'id' | 'createdAt' | 'source'>;
 
 export default function RecipeDiscovery() {
-  const { recipes, loading, error, addRecipe, updateRecipe, deleteRecipe } = useRecipes();
-  const { dietaryPreferences } = useUserPreferencesStore();
+  const { recipes, loading, error, addRecipe, updateRecipe, deleteRecipe, getRecommended } = useRecipes();
+  const { dietaryPreferences, dislikedIngredients, defaultEffortLevel } = useUserPreferencesStore();
 
   // ── Library state ──────────────────────────────────────────────────────────
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,6 +43,37 @@ export default function RecipeDiscovery() {
   // Track which result indices have been saved so we can show a "Saved" state
   const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
+
+  // ── Recommended state ──────────────────────────────────────────────────────
+  const [recommendedRecipes, setRecommendedRecipes] = useState<Recipe[]>([]);
+  const [recommendedLoading, setRecommendedLoading] = useState(false);
+  const [recommendedError, setRecommendedError] = useState<string | null>(null);
+
+  // ── Recommendations ────────────────────────────────────────────────────────
+
+  const loadRecommendations = useCallback(async () => {
+    setRecommendedLoading(true);
+    setRecommendedError(null);
+    try {
+      const results = await getRecommended({
+        dietaryPreferences,
+        dislikedIngredients,
+        defaultEffortLevel,
+      });
+      setRecommendedRecipes(results);
+    } catch {
+      setRecommendedError('Could not load recommendations. Please try again.');
+    } finally {
+      setRecommendedLoading(false);
+    }
+  }, [getRecommended, dietaryPreferences, dislikedIngredients, defaultEffortLevel]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load recommendations the first time the user opens that tab
+  useEffect(() => {
+    if (activeTab === 'Recommended' && !recommendedLoading && recommendedRecipes.length === 0) {
+      loadRecommendations();
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Library filtering ──────────────────────────────────────────────────────
   const filteredRecipes = recipes.filter((recipe) =>
@@ -404,11 +435,95 @@ export default function RecipeDiscovery() {
 
       {/* ── Recommended Tab ─────────────────────────────────────────────────── */}
       {activeTab === 'Recommended' && (
-        <EmptyState
-          icon={<ChefHat className="w-8 h-8" />}
-          title="Recommendations coming soon"
-          description="AI-powered picks from your library based on your preferences — coming in the next update."
-        />
+        <div className="space-y-6">
+
+          {/* Header row with Refresh button */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">
+                Gemini picks from your library based on your preferences.
+              </p>
+            </div>
+            {recipes.length > 0 && (
+              <button
+                onClick={() => loadRecommendations()}
+                disabled={recommendedLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              >
+                <RefreshCw size={15} className={recommendedLoading ? 'animate-spin' : ''} aria-hidden="true" />
+                Refresh
+              </button>
+            )}
+          </div>
+
+          {/* Empty library */}
+          {recipes.length === 0 && !recommendedLoading && (
+            <EmptyState
+              icon={<Sparkles className="w-8 h-8" />}
+              title="Add recipes to get recommendations"
+              description="Once you have recipes in your library, Gemini will suggest the best ones based on your preferences."
+              action={
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="px-6 py-2.5 bg-primary text-white rounded-lg font-medium shadow-sm hover:bg-primary/90 transition-colors"
+                >
+                  Add Your First Recipe
+                </button>
+              }
+            />
+          )}
+
+          {/* Loading skeleton */}
+          {recommendedLoading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm animate-pulse">
+                  <div className="h-48 bg-gray-100" />
+                  <div className="p-5 space-y-3">
+                    <div className="h-4 bg-gray-100 rounded w-3/4" />
+                    <div className="h-3 bg-gray-100 rounded w-full" />
+                    <div className="h-3 bg-gray-100 rounded w-2/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Error state */}
+          {recommendedError && !recommendedLoading && (
+            <div role="alert" className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">
+              {recommendedError}
+            </div>
+          )}
+
+          {/* Small library nudge — shown when Gemini was skipped */}
+          {!recommendedLoading && recommendedRecipes.length > 0 && recipes.length < 5 && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
+              You have {recipes.length} recipe{recipes.length === 1 ? '' : 's'} — add at least 5 for personalized AI recommendations.
+            </div>
+          )}
+
+          {/* Results grid */}
+          {!recommendedLoading && recommendedRecipes.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {recommendedRecipes.map((recipe) => (
+                <RecipeCard
+                  key={recipe.id}
+                  recipe={recipe as unknown as import('../lib/recipes').Recipe}
+                  onView={() => setViewingRecipe(recipe)}
+                  actionButton={
+                    <button
+                      onClick={() => setAssigningRecipe(recipe)}
+                      className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary font-medium rounded-lg text-sm transition-colors border border-transparent hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      + Add to Plan
+                    </button>
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}

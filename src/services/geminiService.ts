@@ -62,6 +62,7 @@ const PHOTO_EXTRACTION_PROMPT = `Analyze this recipe image and extract the follo
   "title": "recipe name",
   "description": "1-2 sentence summary of the dish",
   "prepTimeMinutes": number,
+  "baseServings": number (how many people this recipe serves as written),
   "effortLevel": "Quick Weekday" or "Average" or "Long Weekend",
   "dietaryTags": array of zero or more of: "Vegetarian", "Vegan", "Keto", "Paleo", "Gluten-Free",
   "ingredients": [
@@ -114,6 +115,7 @@ export async function extractRecipeFromPhoto(
     imageUrl: '',
     effortLevel: (parsed.effortLevel as Recipe['effortLevel']) ?? 'Average',
     prepTimeMinutes: (parsed.prepTimeMinutes as number) ?? 30,
+    baseServings: (parsed.baseServings as number) ?? 4,
     dietaryTags: (parsed.dietaryTags as Recipe['dietaryTags']) ?? [],
     ingredients: addIngredientIds(
       (parsed.ingredients as Omit<Recipe['ingredients'][number], 'id'>[]) ?? []
@@ -138,6 +140,7 @@ Return ONLY valid JSON with this structure:
   "title": "recipe name",
   "description": "1-2 sentence summary of the dish",
   "prepTimeMinutes": number,
+  "baseServings": number (how many people this recipe serves as written),
   "effortLevel": "Quick Weekday" or "Average" or "Long Weekend",
   "dietaryTags": array of zero or more of: "Vegetarian", "Vegan", "Keto", "Paleo", "Gluten-Free",
   "ingredients": [
@@ -180,6 +183,7 @@ export async function extractRecipeFromText(
     imageUrl: '',
     effortLevel: (parsed.effortLevel as Recipe['effortLevel']) ?? 'Average',
     prepTimeMinutes: (parsed.prepTimeMinutes as number) ?? 30,
+    baseServings: (parsed.baseServings as number) ?? 4,
     dietaryTags: (parsed.dietaryTags as Recipe['dietaryTags']) ?? [],
     ingredients: addIngredientIds(
       (parsed.ingredients as Omit<Recipe['ingredients'][number], 'id'>[]) ?? []
@@ -198,6 +202,7 @@ Return ONLY a valid JSON array of recipe objects with this exact structure:
   "title": "recipe name",
   "description": "1-2 sentence summary",
   "prepTimeMinutes": number,
+  "baseServings": number (how many people this recipe serves as written),
   "effortLevel": "Quick Weekday" or "Average" or "Long Weekend",
   "dietaryTags": array of zero or more of: "Vegetarian", "Vegan", "Keto", "Paleo", "Gluten-Free",
   "ingredients": [
@@ -242,6 +247,7 @@ export async function searchInternetRecipes(
     imageUrl: '',
     effortLevel: (item.effortLevel as Recipe['effortLevel']) ?? 'Average',
     prepTimeMinutes: (item.prepTimeMinutes as number) ?? 30,
+    baseServings: (item.baseServings as number) ?? 4,
     dietaryTags: (item.dietaryTags as Recipe['dietaryTags']) ?? [],
     ingredients: addIngredientIds(
       (item.ingredients as Omit<Recipe['ingredients'][number], 'id'>[]) ?? []

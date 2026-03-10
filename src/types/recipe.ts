@@ -41,6 +41,8 @@ export interface Recipe {
   imageUrl: string;
   effortLevel: EffortLevel;
   prepTimeMinutes: number;
+  /** How many people the recipe serves as written — used to scale ingredient quantities. */
+  baseServings: number;
   dietaryTags: DietaryPreference[];
   ingredients: Ingredient[];
   instructions: string[];

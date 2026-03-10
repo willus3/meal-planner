@@ -35,6 +35,10 @@ export default function RecipeDetail({ recipe }: RecipeDetailProps) {
           <Clock size={14} aria-hidden="true" />
           {recipe.prepTimeMinutes}m prep
         </span>
+        <span className="flex items-center gap-1.5 bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full font-medium">
+          <Users size={14} aria-hidden="true" />
+          Serves {recipe.baseServings ?? 4}
+        </span>
         <span className="flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1.5 rounded-full font-medium">
           {recipe.effortLevel}
         </span>

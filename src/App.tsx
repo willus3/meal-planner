@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import RecipeDiscovery from './pages/RecipeDiscovery';
 import MealPlanner from './pages/MealPlanner';
 import ShoppingList from './pages/ShoppingList';
+import PlanHistory from './pages/PlanHistory';
 
 function App() {
   const location = useLocation();
@@ -118,7 +119,7 @@ function App() {
           <Route path="/recipes" element={<AuthGuard><RecipeDiscovery /></AuthGuard>} />
           <Route path="/planner" element={<AuthGuard><MealPlanner /></AuthGuard>} />
           <Route path="/shopping" element={<AuthGuard><ShoppingList /></AuthGuard>} />
-          <Route path="/history" element={<AuthGuard><div className="text-center py-20 text-gray-400">Plan History — coming soon</div></AuthGuard>} />
+          <Route path="/history" element={<AuthGuard><PlanHistory /></AuthGuard>} />
         </Routes>
       </main>
     </div>

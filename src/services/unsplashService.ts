@@ -12,9 +12,9 @@
 export async function fetchStockPhoto(query: string): Promise<string | null> {
   const accessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
 
-  // Key not set yet — fail silently, placeholder will be shown instead
+  // Key not set yet — return the local placeholder
   if (!accessKey) {
-    return null;
+    return PLACEHOLDER_URL;
   }
 
   try {
@@ -41,12 +41,15 @@ export async function fetchStockPhoto(query: string): Promise<string | null> {
     const data = await response.json();
 
     if (!data.results || data.results.length === 0) {
-      return null;
+      return PLACEHOLDER_URL;
     }
 
     // Use the 'regular' size — good quality without being too large
     return data.results[0].urls.regular as string;
   } catch {
-    return null;
+    return PLACEHOLDER_URL;
   }
 }
+
+/** Local SVG fallback shown when Unsplash is unavailable or rate-limited. */
+const PLACEHOLDER_URL = '/assets/recipe-placeholder.svg';

@@ -1,10 +1,13 @@
 import PreferencesForm from '../components/ui/PreferencesForm';
 import { useUserPreferencesStore } from '../lib/store';
+import { useUserPreferences } from '../hooks/useUserPreferences';
 import { Utensils } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
   const store = useUserPreferencesStore();
+  // Loads preferences from Firestore on mount and hydrates the Zustand store
+  useUserPreferences();
   
   return (
     <div className="space-y-8 max-w-3xl mx-auto">

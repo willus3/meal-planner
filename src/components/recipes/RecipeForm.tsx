@@ -35,6 +35,7 @@ export default function RecipeForm({ initialValues, onSubmit, onCancel, submitLa
   const [imageUrl, setImageUrl] = useState(initialValues?.imageUrl ?? '');
   const [effortLevel, setEffortLevel] = useState<EffortLevel>(initialValues?.effortLevel ?? 'Average');
   const [prepTimeMinutes, setPrepTimeMinutes] = useState(initialValues?.prepTimeMinutes ?? 30);
+  const [baseServings, setBaseServings] = useState(initialValues?.baseServings ?? 4);
   const [dietaryTags, setDietaryTags] = useState<DietaryPreference[]>(
     (initialValues?.dietaryTags ?? []).filter((t) => t !== 'None')
   );
@@ -114,6 +115,7 @@ export default function RecipeForm({ initialValues, onSubmit, onCancel, submitLa
         imageUrl: imageUrl.trim(),
         effortLevel,
         prepTimeMinutes,
+        baseServings,
         dietaryTags,
         // Filter out any blank ingredient rows before saving
         ingredients: ingredients.filter((i) => i.name.trim()),
@@ -172,8 +174,8 @@ export default function RecipeForm({ initialValues, onSubmit, onCancel, submitLa
         )}
       </div>
 
-      {/* Effort + Prep Time row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Effort + Prep Time + Servings row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="space-y-2">
           <label className="block text-sm font-semibold text-gray-700">Effort Level</label>
           <div className="flex flex-col gap-1.5">
@@ -214,6 +216,25 @@ export default function RecipeForm({ initialValues, onSubmit, onCancel, submitLa
           {errors.prepTime && (
             <p id="prep-error" role="alert" className="text-xs text-red-600">{errors.prepTime}</p>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="base-servings" className="block text-sm font-semibold text-gray-700">
+            Serves
+          </label>
+          <input
+            id="base-servings"
+            type="number"
+            min={1}
+            max={50}
+            value={baseServings}
+            onChange={(e) => setBaseServings(Math.max(1, Number(e.target.value)))}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            aria-describedby="base-servings-hint"
+          />
+          <p id="base-servings-hint" className="text-xs text-gray-400">
+            How many people this recipe feeds as written.
+          </p>
         </div>
       </div>
 

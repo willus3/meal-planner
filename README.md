@@ -4,6 +4,17 @@ A mobile-first web app for weekly family meal planning. Open it once a week, get
 
 ---
 
+## Features
+
+- **Recipe Library** — Add recipes manually, scan a photo of a cookbook page, or import directly from any recipe URL. Rate recipes with an emoji scale after you cook them.
+- **Find Online** — Search thousands of real recipes via TheMealDB (with photos and source links), or paste any recipe URL to have Gemini extract and save it automatically.
+- **AI Meal Recommendations** — Gemini picks recipes from your library based on your dietary preferences and effort level.
+- **Weekly Meal Planner** — Assign recipes to each day of the week with an adjustable serving size per meal. Syncs in real time across all your devices.
+- **Shopping List** — Ingredients are automatically aggregated from your weekly plan, scaled to your planned servings, and organized by category. Add manual items too.
+- **Plan History** — Browse past meal plans and repeat any week with one tap.
+
+---
+
 ## Live App
 
 **https://meal-planner-51d03.web.app**

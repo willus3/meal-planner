@@ -373,7 +373,14 @@ export default function RecipeDiscovery() {
                 type="search"
                 placeholder='Try "chicken tikka", "beef stew", or "chocolate cake"'
                 value={onlineQuery}
-                onChange={(e) => setOnlineQuery(e.target.value)}
+                onChange={(e) => {
+                  setOnlineQuery(e.target.value);
+                  if (!e.target.value) {
+                    setOnlineResults([]);
+                    setOnlineError(null);
+                    setSavedIndices(new Set());
+                  }
+                }}
                 className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
                 aria-label="Search for recipes"
                 disabled={onlineLoading}

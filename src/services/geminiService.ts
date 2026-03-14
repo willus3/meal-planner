@@ -197,13 +197,12 @@ export async function extractRecipeFromText(
 
 const INTERNET_SEARCH_PROMPT = (query: string, preferences: string, count: number, site?: string) =>
   `Suggest ${count} real recipes matching this request: "${query}".
-${site ? `Focus specifically on recipes from ${site}.` : ''}
+${site ? `Focus specifically on recipes that can be found on ${site}.` : ''}
 The user has these dietary preferences: ${preferences || 'none specified'}.
 Return ONLY a valid JSON array of recipe objects with this exact structure:
 [{
   "title": "recipe name",
   "description": "1-2 sentence summary",
-  "sourceUrl": "direct URL to the recipe page${site ? ` on ${site}` : ' on a well-known recipe site'}",
   "prepTimeMinutes": number,
   "baseServings": number (how many people this recipe serves as written),
   "effortLevel": "Quick Weekday" or "Average" or "Long Weekend",
@@ -218,7 +217,6 @@ Return only the JSON array. No markdown, no explanation, no code blocks.`;
 /**
  * Asks Gemini to suggest recipes matching the user's query.
  * Optionally scoped to a specific website (e.g. "allrecipes.com").
- * Each result includes a sourceUrl linking back to the original recipe page.
  * Accepted recipes are saved to the user's library by the caller.
  */
 export async function searchInternetRecipes(
@@ -251,7 +249,6 @@ export async function searchInternetRecipes(
     title: (item.title as string) ?? 'Untitled Recipe',
     description: (item.description as string) ?? '',
     imageUrl: '',
-    sourceUrl: (item.sourceUrl as string) || undefined,
     effortLevel: (item.effortLevel as Recipe['effortLevel']) ?? 'Average',
     prepTimeMinutes: (item.prepTimeMinutes as number) ?? 30,
     baseServings: (item.baseServings as number) ?? 4,

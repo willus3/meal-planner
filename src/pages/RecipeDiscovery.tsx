@@ -53,6 +53,10 @@ export default function RecipeDiscovery() {
   const [urlSaved, setUrlSaved] = useState(false);
   const [urlSaving, setUrlSaving] = useState(false);
 
+  // ── Online result preview & load-more state ────────────────────────────────
+  const [viewingOnlineResult, setViewingOnlineResult] = useState<OnlineResult | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   // ── Recommended state ──────────────────────────────────────────────────────
   const [recommendedRecipes, setRecommendedRecipes] = useState<Recipe[]>([]);
   const [recommendedLoading, setRecommendedLoading] = useState(false);
@@ -210,6 +214,32 @@ export default function RecipeDiscovery() {
       setActionError('Failed to save recipe. Please try again.');
     } finally {
       setUrlSaving(false);
+    }
+  };
+
+  /**
+   * Builds a real Google search URL for a recipe title.
+   * When a site filter is active it uses site: operator so results come from that domain.
+   * This is reliable because we construct the URL ourselves — no AI hallucination risk.
+   */
+  const buildSearchUrl = (title: string) => {
+    const q = onlineSite.trim()
+      ? `"${title}" site:${onlineSite.trim()}`
+      : `"${title}" recipe`;
+    return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+  };
+
+  /** Appends another batch of results to the existing list without clearing them. */
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    const activePreferences = dietaryPreferences.filter((p) => p !== 'None');
+    try {
+      const more = await searchInternetRecipes(onlineQuery, activePreferences, INTERNET_SEARCH_COUNT, onlineSite.trim() || undefined);
+      setOnlineResults((prev) => [...prev, ...more]);
+    } catch (err) {
+      setOnlineError(err instanceof Error ? err.message : 'Failed to load more. Try again.');
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -433,7 +463,7 @@ export default function RecipeDiscovery() {
           {!onlineLoading && onlineResults.length > 0 && (
             <>
               <p className="text-sm text-gray-500">
-                {onlineResults.length} recipes found — tap "Save to My Library" to keep any you like.
+                {onlineResults.length} recipe{onlineResults.length === 1 ? '' : 's'} found — click a card to preview, then save any you like.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {onlineResults.map((result, index) => {
@@ -445,21 +475,19 @@ export default function RecipeDiscovery() {
                     <RecipeCard
                       key={index}
                       recipe={{ ...result, id: `online-${index}`, createdAt: new Date(), source: 'internet' } as unknown as import('../lib/recipes').Recipe}
+                      onView={() => setViewingOnlineResult(result)}
                       actionButton={
                         <div className="space-y-2">
-                          {/* Source link */}
-                          {result.sourceUrl && (
-                            <a
-                              href={result.sourceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-xs text-primary hover:underline truncate"
-                              title={result.sourceUrl}
-                            >
-                              <ExternalLink size={11} aria-hidden="true" />
-                              View recipe source
-                            </a>
-                          )}
+                          {/* Google search link — always works, no hallucination risk */}
+                          <a
+                            href={buildSearchUrl(result.title)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                          >
+                            <ExternalLink size={11} aria-hidden="true" />
+                            {onlineSite.trim() ? `Find on ${onlineSite.trim()}` : 'Find on web'}
+                          </a>
 
                           {/* Duplicate warning */}
                           {duplicate && !alreadySaved && (
@@ -498,6 +526,27 @@ export default function RecipeDiscovery() {
                     />
                   );
                 })}
+              </div>
+
+              {/* Load more */}
+              <div className="flex justify-center pt-2">
+                <button
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+                      Loading more...
+                    </>
+                  ) : (
+                    <>
+                      <Search size={15} aria-hidden="true" />
+                      Show 5 more results
+                    </>
+                  )}
+                </button>
               </div>
             </>
           )}
@@ -690,7 +739,7 @@ export default function RecipeDiscovery() {
 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}
 
-      {/* View Recipe Modal */}
+      {/* View Recipe Modal (library) */}
       <Modal
         isOpen={!!viewingRecipe}
         onClose={() => setViewingRecipe(null)}
@@ -698,6 +747,25 @@ export default function RecipeDiscovery() {
         maxWidth="max-w-2xl"
       >
         {viewingRecipe && <RecipeDetail recipe={viewingRecipe} />}
+      </Modal>
+
+      {/* Preview Online Result Modal */}
+      <Modal
+        isOpen={!!viewingOnlineResult}
+        onClose={() => setViewingOnlineResult(null)}
+        title={viewingOnlineResult?.title ?? ''}
+        maxWidth="max-w-2xl"
+      >
+        {viewingOnlineResult && (
+          <RecipeDetail
+            recipe={{
+              ...viewingOnlineResult,
+              id: 'online-preview',
+              createdAt: new Date(),
+              source: 'internet',
+            }}
+          />
+        )}
       </Modal>
 
       {/* Scan Recipe Modal */}

@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import type { GoogleSearchRetrievalTool } from '@google/generative-ai';
 import type { Recipe } from '../types/recipe';
 
 /**
@@ -194,13 +195,15 @@ export async function extractRecipeFromText(
 
 // ─── Internet Recipe Search ───────────────────────────────────────────────────
 
-const INTERNET_SEARCH_PROMPT = (query: string, preferences: string, count: number) =>
-  `Suggest ${count} recipes matching this request: "${query}".
+const INTERNET_SEARCH_PROMPT = (query: string, preferences: string, count: number, site?: string) =>
+  `Suggest ${count} real recipes matching this request: "${query}".
+${site ? `Focus specifically on recipes from ${site}.` : ''}
 The user has these dietary preferences: ${preferences || 'none specified'}.
 Return ONLY a valid JSON array of recipe objects with this exact structure:
 [{
   "title": "recipe name",
   "description": "1-2 sentence summary",
+  "sourceUrl": "direct URL to the recipe page${site ? ` on ${site}` : ' on a well-known recipe site'}",
   "prepTimeMinutes": number,
   "baseServings": number (how many people this recipe serves as written),
   "effortLevel": "Quick Weekday" or "Average" or "Long Weekend",
@@ -213,17 +216,20 @@ Return ONLY a valid JSON array of recipe objects with this exact structure:
 Return only the JSON array. No markdown, no explanation, no code blocks.`;
 
 /**
- * Asks Gemini to suggest recipes from the internet matching the user's query.
+ * Asks Gemini to suggest recipes matching the user's query.
+ * Optionally scoped to a specific website (e.g. "allrecipes.com").
+ * Each result includes a sourceUrl linking back to the original recipe page.
  * Accepted recipes are saved to the user's library by the caller.
  */
 export async function searchInternetRecipes(
   query: string,
   dietaryPreferences: string[],
-  count = 5
+  count = 5,
+  site?: string
 ): Promise<Omit<Recipe, 'id' | 'createdAt' | 'source'>[]> {
   const model = getModel();
   const preferences = dietaryPreferences.join(', ');
-  const prompt = INTERNET_SEARCH_PROMPT(query, preferences, count);
+  const prompt = INTERNET_SEARCH_PROMPT(query, preferences, count, site);
 
   let text: string;
   try {
@@ -245,6 +251,7 @@ export async function searchInternetRecipes(
     title: (item.title as string) ?? 'Untitled Recipe',
     description: (item.description as string) ?? '',
     imageUrl: '',
+    sourceUrl: (item.sourceUrl as string) || undefined,
     effortLevel: (item.effortLevel as Recipe['effortLevel']) ?? 'Average',
     prepTimeMinutes: (item.prepTimeMinutes as number) ?? 30,
     baseServings: (item.baseServings as number) ?? 4,
@@ -254,6 +261,79 @@ export async function searchInternetRecipes(
     ),
     instructions: (item.instructions as string[]) ?? [],
   }));
+}
+
+// ─── URL Recipe Import ────────────────────────────────────────────────────────
+
+const URL_IMPORT_PROMPT = (url: string) =>
+  `Fetch and parse the recipe at this URL: ${url}
+
+Extract all recipe details and return ONLY valid JSON with this structure:
+{
+  "title": "recipe name",
+  "description": "1-2 sentence summary of the dish",
+  "prepTimeMinutes": number,
+  "baseServings": number (how many people this recipe serves as written),
+  "effortLevel": "Quick Weekday" or "Average" or "Long Weekend",
+  "dietaryTags": array of zero or more of: "Vegetarian", "Vegan", "Keto", "Paleo", "Gluten-Free",
+  "ingredients": [
+    { "name": "ingredient name", "quantity": number, "unit": "unit of measure", "category": "Produce" or "Dairy" or "Meat" or "Pantry" or "Spices" or "Bakery" or "Frozen" or "Other" }
+  ],
+  "instructions": ["step 1 as a complete sentence", "step 2", ...]
+}
+Return ONLY the JSON object. No markdown, no explanation, no code blocks. If a field cannot be determined, use a sensible default.`;
+
+/**
+ * Imports a recipe directly from a URL using Gemini with Google Search grounding.
+ * Grounding allows Gemini to fetch and read the actual page content.
+ */
+export async function extractRecipeFromUrl(
+  url: string
+): Promise<Omit<Recipe, 'id' | 'createdAt' | 'source'>> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) throw new Error('VITE_GEMINI_API_KEY is not set in your .env.local file.');
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  // Google Search grounding lets Gemini fetch and read the live page
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    tools: [{ googleSearchRetrieval: {} } as GoogleSearchRetrievalTool],
+  });
+
+  let text: string;
+  try {
+    const result = await model.generateContent(URL_IMPORT_PROMPT(url));
+    text = result.response.text();
+  } catch (err: unknown) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`Gemini API error: ${detail}`);
+  }
+
+  // With grounding, Gemini may return extra text around the JSON — extract it robustly
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  const jsonText = jsonMatch ? jsonMatch[0] : stripCodeFences(text);
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    throw new Error("Couldn't extract a recipe from that URL. Make sure it links directly to a recipe page.");
+  }
+
+  return {
+    title: (parsed.title as string) ?? '',
+    description: (parsed.description as string) ?? '',
+    imageUrl: '',
+    sourceUrl: url,
+    effortLevel: (parsed.effortLevel as Recipe['effortLevel']) ?? 'Average',
+    prepTimeMinutes: (parsed.prepTimeMinutes as number) ?? 30,
+    baseServings: (parsed.baseServings as number) ?? 4,
+    dietaryTags: (parsed.dietaryTags as Recipe['dietaryTags']) ?? [],
+    ingredients: addIngredientIds(
+      (parsed.ingredients as Omit<Recipe['ingredients'][number], 'id'>[]) ?? []
+    ),
+    instructions: (parsed.instructions as string[]) ?? [],
+  };
 }
 
 // ─── AI Recommendations ───────────────────────────────────────────────────────

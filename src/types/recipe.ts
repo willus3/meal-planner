@@ -48,4 +48,6 @@ export interface Recipe {
   instructions: string[];
   source: RecipeSource;
   createdAt: Date;
+  /** Original URL for internet-sourced recipes — links back to the source page. */
+  sourceUrl?: string;
 }

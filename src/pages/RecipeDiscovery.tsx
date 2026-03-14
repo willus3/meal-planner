@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, ChefHat, Camera, Globe, Loader2, Sparkles, RefreshCw } from 'lucide-react';
+import { Search, Plus, ChefHat, Camera, Globe, Loader2, Sparkles, RefreshCw, ExternalLink, Link2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useRecipes } from '../hooks/useRecipes';
 import { useUserPreferencesStore } from '../lib/store';
-import { searchInternetRecipes } from '../services/geminiService';
+import { searchInternetRecipes, extractRecipeFromUrl } from '../services/geminiService';
 import { INTERNET_SEARCH_COUNT } from '../lib/constants';
 import RecipeCard from '../components/recipes/RecipeCard';
 import { QuickAssignModal } from '../components/recipes/QuickAssignModal';
@@ -37,12 +37,21 @@ export default function RecipeDiscovery() {
 
   // ── Find Online state ──────────────────────────────────────────────────────
   const [onlineQuery, setOnlineQuery] = useState('');
+  const [onlineSite, setOnlineSite] = useState('');
   const [onlineResults, setOnlineResults] = useState<OnlineResult[]>([]);
   const [onlineLoading, setOnlineLoading] = useState(false);
   const [onlineError, setOnlineError] = useState<string | null>(null);
   // Track which result indices have been saved so we can show a "Saved" state
   const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
+
+  // ── URL import state ───────────────────────────────────────────────────────
+  const [urlInput, setUrlInput] = useState('');
+  const [urlResult, setUrlResult] = useState<OnlineResult | null>(null);
+  const [urlLoading, setUrlLoading] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [urlSaved, setUrlSaved] = useState(false);
+  const [urlSaving, setUrlSaving] = useState(false);
 
   // ── Recommended state ──────────────────────────────────────────────────────
   const [recommendedRecipes, setRecommendedRecipes] = useState<Recipe[]>([]);
@@ -138,7 +147,7 @@ export default function RecipeDiscovery() {
     const activePreferences = dietaryPreferences.filter((p) => p !== 'None');
 
     try {
-      const results = await searchInternetRecipes(onlineQuery, activePreferences, INTERNET_SEARCH_COUNT);
+      const results = await searchInternetRecipes(onlineQuery, activePreferences, INTERNET_SEARCH_COUNT, onlineSite.trim() || undefined);
       setOnlineResults(results);
       if (results.length === 0) {
         setOnlineError('No results found. Try different keywords or broader search terms.');
@@ -165,6 +174,42 @@ export default function RecipeDiscovery() {
       setActionError('Failed to save recipe. Please try again.');
     } finally {
       setSavingIndex(null);
+    }
+  };
+
+  /** Imports a recipe directly from a pasted URL via Gemini URL grounding. */
+  const handleUrlImport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!urlInput.trim()) return;
+
+    setUrlLoading(true);
+    setUrlError(null);
+    setUrlResult(null);
+    setUrlSaved(false);
+
+    try {
+      const result = await extractRecipeFromUrl(urlInput.trim());
+      setUrlResult(result);
+    } catch (err) {
+      setUrlError(err instanceof Error ? err.message : 'Failed to import recipe from that URL.');
+    } finally {
+      setUrlLoading(false);
+    }
+  };
+
+  /** Saves the URL-imported recipe result to the library. */
+  const handleSaveUrlResult = async () => {
+    if (!urlResult) return;
+    setUrlSaving(true);
+    setActionError(null);
+    try {
+      const title = isDuplicate(urlResult.title) ? `${urlResult.title} (Copy)` : urlResult.title;
+      await addRecipe({ ...urlResult, title, source: 'internet' });
+      setUrlSaved(true);
+    } catch {
+      setActionError('Failed to save recipe. Please try again.');
+    } finally {
+      setUrlSaving(false);
     }
   };
 
@@ -309,39 +354,55 @@ export default function RecipeDiscovery() {
       {activeTab === 'FindOnline' && (
         <div className="space-y-6">
           {/* Search form */}
-          <form onSubmit={handleOnlineSearch} className="flex gap-3 max-w-2xl" noValidate>
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Globe className="h-5 w-5 text-gray-400" aria-hidden="true" />
+          <div className="space-y-2 max-w-2xl">
+            <form onSubmit={handleOnlineSearch} className="flex gap-3" noValidate>
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Globe className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                </div>
+                <input
+                  type="search"
+                  placeholder='Try "quick chicken pasta" or "vegan Sunday dinner"'
+                  value={onlineQuery}
+                  onChange={(e) => setOnlineQuery(e.target.value)}
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                  aria-label="Search for recipes online"
+                  disabled={onlineLoading}
+                />
               </div>
+              <button
+                type="submit"
+                disabled={onlineLoading || !onlineQuery.trim()}
+                className="px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 flex items-center gap-2 shrink-0"
+              >
+                {onlineLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <Search size={16} aria-hidden="true" />
+                    Search
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Optional site filter */}
+            <div className="flex items-center gap-2">
+              <Globe size={14} className="text-gray-400 shrink-0" aria-hidden="true" />
               <input
-                type="search"
-                placeholder='Try "quick chicken pasta" or "vegan Sunday dinner"'
-                value={onlineQuery}
-                onChange={(e) => setOnlineQuery(e.target.value)}
-                className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
-                aria-label="Search for recipes online"
+                type="text"
+                placeholder="Optional: search a specific site, e.g. allrecipes.com"
+                value={onlineSite}
+                onChange={(e) => setOnlineSite(e.target.value)}
                 disabled={onlineLoading}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors disabled:opacity-50"
+                aria-label="Limit search to a specific website"
               />
             </div>
-            <button
-              type="submit"
-              disabled={onlineLoading || !onlineQuery.trim()}
-              className="px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 flex items-center gap-2 shrink-0"
-            >
-              {onlineLoading ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-                  Searching...
-                </>
-              ) : (
-                <>
-                  <Search size={16} aria-hidden="true" />
-                  Search
-                </>
-              )}
-            </button>
-          </form>
+          </div>
 
           {/* Loading skeleton */}
           {onlineLoading && (
@@ -386,6 +447,20 @@ export default function RecipeDiscovery() {
                       recipe={{ ...result, id: `online-${index}`, createdAt: new Date(), source: 'internet' } as unknown as import('../lib/recipes').Recipe}
                       actionButton={
                         <div className="space-y-2">
+                          {/* Source link */}
+                          {result.sourceUrl && (
+                            <a
+                              href={result.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-xs text-primary hover:underline truncate"
+                              title={result.sourceUrl}
+                            >
+                              <ExternalLink size={11} aria-hidden="true" />
+                              View recipe source
+                            </a>
+                          )}
+
                           {/* Duplicate warning */}
                           {duplicate && !alreadySaved && (
                             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
@@ -432,9 +507,91 @@ export default function RecipeDiscovery() {
             <EmptyState
               icon={<Globe className="w-8 h-8" />}
               title="Find new recipes"
-              description="Type what you're in the mood for and Gemini will suggest matching recipes you can save to your library."
+              description="Search above, or paste a recipe URL below to import directly."
             />
           )}
+
+          {/* ── URL Import ──────────────────────────────────────────────────── */}
+          <div className="border-t border-gray-100 pt-6 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-1">
+                <Link2 size={15} aria-hidden="true" />
+                Import from a URL
+              </h3>
+              <p className="text-xs text-gray-500">Paste a link to any recipe page and Gemini will extract the recipe for you.</p>
+            </div>
+
+            <form onSubmit={handleUrlImport} className="flex gap-3 max-w-2xl" noValidate>
+              <input
+                type="url"
+                placeholder="https://www.allrecipes.com/recipe/..."
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                disabled={urlLoading}
+                className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors disabled:opacity-50"
+                aria-label="Recipe URL to import"
+              />
+              <button
+                type="submit"
+                disabled={urlLoading || !urlInput.trim()}
+                className="px-6 py-3 bg-gray-800 text-white rounded-xl text-sm font-medium hover:bg-gray-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-800 focus:ring-offset-2 flex items-center gap-2 shrink-0"
+              >
+                {urlLoading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                    Importing...
+                  </>
+                ) : (
+                  'Import'
+                )}
+              </button>
+            </form>
+
+            {/* URL import error */}
+            {urlError && (
+              <p className="text-sm text-red-600">{urlError}</p>
+            )}
+
+            {/* URL import result */}
+            {urlResult && !urlLoading && (
+              <div className="max-w-xs">
+                <RecipeCard
+                  recipe={{ ...urlResult, id: 'url-import', createdAt: new Date(), source: 'internet' } as unknown as import('../lib/recipes').Recipe}
+                  actionButton={
+                    <div className="space-y-2">
+                      {/* Link back to source */}
+                      {urlResult.sourceUrl && (
+                        <a
+                          href={urlResult.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-xs text-primary hover:underline truncate"
+                          title={urlResult.sourceUrl}
+                        >
+                          <ExternalLink size={11} aria-hidden="true" />
+                          View original page
+                        </a>
+                      )}
+
+                      {urlSaved ? (
+                        <div className="w-full py-2 bg-green-50 text-green-700 font-medium rounded-lg text-sm text-center border border-green-200">
+                          ✓ Saved to Library
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleSaveUrlResult}
+                          disabled={urlSaving}
+                          className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary font-medium rounded-lg text-sm transition-colors border border-transparent hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                        >
+                          {urlSaving ? 'Saving...' : 'Save to My Library'}
+                        </button>
+                      )}
+                    </div>
+                  }
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
 

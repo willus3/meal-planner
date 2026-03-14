@@ -8,6 +8,7 @@ import {
   getDocs,
   addDoc,
   updateDoc,
+  onSnapshot,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -61,6 +62,41 @@ export async function getCurrentPlan(uid: string): Promise<MealPlan | null> {
     id: docSnap.id,
     createdAt: (data.createdAt as Timestamp).toDate(),
   } as MealPlan;
+}
+
+/**
+ * Subscribes to real-time updates on the user's active meal plan.
+ * Fires immediately with the current plan, then again whenever any device
+ * saves a change — enabling cross-device sync without a page refresh.
+ *
+ * @returns An unsubscribe function — call it to stop listening (important for cleanup).
+ */
+export function subscribeToActivePlan(
+  uid: string,
+  onData: (plan: MealPlan | null) => void,
+  onError: (message: string) => void
+): () => void {
+  const q = query(plansRef(uid), where('isActive', '==', true));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      if (snapshot.empty) {
+        onData(null);
+        return;
+      }
+      const docSnap = snapshot.docs[0];
+      const data = docSnap.data();
+      onData({
+        ...data,
+        id: docSnap.id,
+        createdAt: (data.createdAt as Timestamp).toDate(),
+      } as MealPlan);
+    },
+    () => {
+      onError('Failed to load your meal plan. Please refresh.');
+    }
+  );
 }
 
 /**

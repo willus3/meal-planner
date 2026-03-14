@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from './useAuth';
 import {
-  getCurrentPlan,
+  subscribeToActivePlan,
   saveWeeklyPlan,
   clearPlan as serviceClearPlan,
   EMPTY_SCHEDULE,
@@ -21,11 +21,13 @@ interface UseMealPlanResult {
 }
 
 /**
- * Manages the user's current weekly meal plan with Firestore persistence.
+ * Manages the user's current weekly meal plan with Firestore persistence
+ * and real-time cross-device sync.
  *
- * Loads the active plan on mount. All mutations update local state immediately
- * (optimistic update) and then sync to Firestore in the background. Firestore's
- * offline persistence ensures writes are queued if the user is offline.
+ * Subscribes to the active plan on mount — any change saved from another
+ * device (phone, tablet, laptop) is pushed here automatically without a
+ * page refresh. Mutations still apply an optimistic update first for
+ * instant local feedback, then let the snapshot confirm the final state.
  */
 export function useMealPlan(): UseMealPlanResult {
   const { user } = useAuth();
@@ -41,19 +43,22 @@ export function useMealPlan(): UseMealPlanResult {
   useEffect(() => {
     if (!user) return;
 
-    (async () => {
-      try {
-        const current = await getCurrentPlan(user.uid);
-        if (current) {
-          setPlan(current);
-          planIdRef.current = current.id;
-        }
-      } catch {
-        setError('Failed to load your meal plan. Please refresh.');
-      } finally {
+    // Subscribe to real-time updates — returns cleanup function
+    const unsubscribe = subscribeToActivePlan(
+      user.uid,
+      (current) => {
+        // Always sync planIdRef so mutations target the right document
+        planIdRef.current = current?.id;
+        setPlan(current);
+        setLoading(false);
+      },
+      (message) => {
+        setError(message);
         setLoading(false);
       }
-    })();
+    );
+
+    return unsubscribe;
   }, [user]);
 
   /**
@@ -87,10 +92,10 @@ export function useMealPlan(): UseMealPlanResult {
 
     setSaving(true);
     try {
+      // saveWeeklyPlan returns the doc ID — store it so subsequent writes
+      // target the same document before the onSnapshot callback fires.
       const id = await saveWeeklyPlan(user.uid, updatedSchedule, planIdRef.current);
       planIdRef.current = id;
-      // Update the plan's id now that we have it from Firestore
-      setPlan((prev) => (prev ? { ...prev, id } : prev));
     } catch {
       setError('Failed to save. Please try again.');
     } finally {

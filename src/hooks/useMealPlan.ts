@@ -15,6 +15,7 @@ interface UseMealPlanResult {
   /** True while a Firestore write is in flight — show a saving indicator in the UI. */
   saving: boolean;
   assignMeal: (day: DayOfWeek, recipeId: string, servings: number) => Promise<void>;
+  updateServings: (day: DayOfWeek, servings: number) => Promise<void>;
   removeMeal: (day: DayOfWeek) => Promise<void>;
   clearPlan: () => Promise<void>;
 }
@@ -97,6 +98,33 @@ export function useMealPlan(): UseMealPlanResult {
     }
   };
 
+  /**
+   * Updates only the serving count for an already-assigned meal.
+   * Leaves the recipe unchanged — just patches the servings field.
+   */
+  const updateServings = async (day: DayOfWeek, servings: number) => {
+    if (!user || !plan) return;
+    const current = plan.schedule[day];
+    if (!current) return;
+
+    const updatedSchedule: WeeklySchedule = {
+      ...plan.schedule,
+      [day]: { ...current, servings },
+    };
+
+    // Optimistic update
+    setPlan((prev) => (prev ? { ...prev, schedule: updatedSchedule } : prev));
+
+    setSaving(true);
+    try {
+      await saveWeeklyPlan(user.uid, updatedSchedule, planIdRef.current);
+    } catch {
+      setError('Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   /** Removes a meal from a specific day and saves to Firestore. */
   const removeMeal = async (day: DayOfWeek) => {
     if (!user || !plan) return;
@@ -136,5 +164,5 @@ export function useMealPlan(): UseMealPlanResult {
     }
   };
 
-  return { plan, loading, error, saving, assignMeal, removeMeal, clearPlan };
+  return { plan, loading, error, saving, assignMeal, updateServings, removeMeal, clearPlan };
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, Plus, X, AlertTriangle } from 'lucide-react';
+import { Calendar, Plus, Minus, X, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMealPlan } from '../hooks/useMealPlan';
 import { useRecipes } from '../hooks/useRecipes';
@@ -9,7 +9,7 @@ import { DAYS_OF_WEEK } from '../lib/constants';
 import type { DayOfWeek } from '../types/mealplan';
 
 export default function MealPlanner() {
-  const { plan, loading, error, saving, assignMeal, removeMeal, clearPlan } = useMealPlan();
+  const { plan, loading, error, saving, assignMeal, updateServings, removeMeal, clearPlan } = useMealPlan();
   const { recipes, loading: recipesLoading } = useRecipes();
 
   // The day whose empty slot was tapped — opens RecipePickerModal
@@ -126,10 +126,31 @@ export default function MealPlanner() {
                           {recipe.effortLevel}
                         </div>
                         <h3 className="text-base font-bold text-gray-900 leading-tight">{recipe.title}</h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                          <span className="font-medium text-gray-700">{plannedMeal?.servings} servings</span>
-                          {' · '}{recipe.prepTimeMinutes}m prep
-                        </p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          {/* Inline serving size adjuster */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => updateServings(day, Math.max(1, (plannedMeal?.servings ?? 1) - 1))}
+                              disabled={saving || (plannedMeal?.servings ?? 1) <= 1}
+                              className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-30 focus:outline-none focus:ring-2 focus:ring-primary"
+                              aria-label="Decrease servings"
+                            >
+                              <Minus size={11} />
+                            </button>
+                            <span className="text-sm font-medium text-gray-700 w-20 text-center">
+                              {plannedMeal?.servings} servings
+                            </span>
+                            <button
+                              onClick={() => updateServings(day, Math.min(12, (plannedMeal?.servings ?? 1) + 1))}
+                              disabled={saving || (plannedMeal?.servings ?? 1) >= 12}
+                              className="w-6 h-6 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-30 focus:outline-none focus:ring-2 focus:ring-primary"
+                              aria-label="Increase servings"
+                            >
+                              <Plus size={11} />
+                            </button>
+                          </div>
+                          <span className="text-sm text-gray-400">· {recipe.prepTimeMinutes}m prep</span>
+                        </div>
                       </div>
                       <button
                         onClick={() => removeMeal(day)}

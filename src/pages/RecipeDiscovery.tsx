@@ -3,8 +3,8 @@ import { Search, Plus, ChefHat, Camera, Globe, Loader2, Sparkles, RefreshCw, Ext
 import { cn } from '../lib/utils';
 import { useRecipes } from '../hooks/useRecipes';
 import { useUserPreferencesStore } from '../lib/store';
-import { searchInternetRecipes, extractRecipeFromUrl } from '../services/geminiService';
-import { INTERNET_SEARCH_COUNT } from '../lib/constants';
+import { extractRecipeFromUrl } from '../services/geminiService';
+import { searchMealDb } from '../services/mealDbService';
 import RecipeCard from '../components/recipes/RecipeCard';
 import { QuickAssignModal } from '../components/recipes/QuickAssignModal';
 import Modal from '../components/ui/Modal';
@@ -37,7 +37,6 @@ export default function RecipeDiscovery() {
 
   // ── Find Online state ──────────────────────────────────────────────────────
   const [onlineQuery, setOnlineQuery] = useState('');
-  const [onlineSite, setOnlineSite] = useState('');
   const [onlineResults, setOnlineResults] = useState<OnlineResult[]>([]);
   const [onlineLoading, setOnlineLoading] = useState(false);
   const [onlineError, setOnlineError] = useState<string | null>(null);
@@ -53,9 +52,8 @@ export default function RecipeDiscovery() {
   const [urlSaved, setUrlSaved] = useState(false);
   const [urlSaving, setUrlSaving] = useState(false);
 
-  // ── Online result preview & load-more state ────────────────────────────────
+  // ── Online result preview state ────────────────────────────────────────────
   const [viewingOnlineResult, setViewingOnlineResult] = useState<OnlineResult | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
 
   // ── Recommended state ──────────────────────────────────────────────────────
   const [recommendedRecipes, setRecommendedRecipes] = useState<Recipe[]>([]);
@@ -147,14 +145,11 @@ export default function RecipeDiscovery() {
     setOnlineResults([]);
     setSavedIndices(new Set());
 
-    // Filter out 'None' before sending to Gemini
-    const activePreferences = dietaryPreferences.filter((p) => p !== 'None');
-
     try {
-      const results = await searchInternetRecipes(onlineQuery, activePreferences, INTERNET_SEARCH_COUNT, onlineSite.trim() || undefined);
+      const results = await searchMealDb(onlineQuery);
       setOnlineResults(results);
       if (results.length === 0) {
-        setOnlineError('No results found. Try different keywords or broader search terms.');
+        setOnlineError('No results found. Try different keywords — TheMealDB works best with dish names like "chicken tikka" or "beef stew".');
       }
     } catch (err) {
       setOnlineError(err instanceof Error ? err.message : 'Search failed. Try again.');
@@ -214,32 +209,6 @@ export default function RecipeDiscovery() {
       setActionError('Failed to save recipe. Please try again.');
     } finally {
       setUrlSaving(false);
-    }
-  };
-
-  /**
-   * Builds a real Google search URL for a recipe title.
-   * When a site filter is active it uses site: operator so results come from that domain.
-   * This is reliable because we construct the URL ourselves — no AI hallucination risk.
-   */
-  const buildSearchUrl = (title: string) => {
-    const q = onlineSite.trim()
-      ? `"${title}" site:${onlineSite.trim()}`
-      : `"${title}" recipe`;
-    return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
-  };
-
-  /** Appends another batch of results to the existing list without clearing them. */
-  const handleLoadMore = async () => {
-    setLoadingMore(true);
-    const activePreferences = dietaryPreferences.filter((p) => p !== 'None');
-    try {
-      const more = await searchInternetRecipes(onlineQuery, activePreferences, INTERNET_SEARCH_COUNT, onlineSite.trim() || undefined);
-      setOnlineResults((prev) => [...prev, ...more]);
-    } catch (err) {
-      setOnlineError(err instanceof Error ? err.message : 'Failed to load more. Try again.');
-    } finally {
-      setLoadingMore(false);
     }
   };
 
@@ -383,61 +352,46 @@ export default function RecipeDiscovery() {
       {/* ── Find Online Tab ─────────────────────────────────────────────────── */}
       {activeTab === 'FindOnline' && (
         <div className="space-y-6">
-          {/* Search form */}
-          <div className="space-y-2 max-w-2xl">
-            <form onSubmit={handleOnlineSearch} className="flex gap-3" noValidate>
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Globe className="h-5 w-5 text-gray-400" aria-hidden="true" />
-                </div>
-                <input
-                  type="search"
-                  placeholder='Try "quick chicken pasta" or "vegan Sunday dinner"'
-                  value={onlineQuery}
-                  onChange={(e) => setOnlineQuery(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
-                  aria-label="Search for recipes online"
-                  disabled={onlineLoading}
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={onlineLoading || !onlineQuery.trim()}
-                className="px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 flex items-center gap-2 shrink-0"
-              >
-                {onlineLoading ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" aria-hidden="true" />
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    <Search size={16} aria-hidden="true" />
-                    Search
-                  </>
-                )}
-              </button>
-            </form>
 
-            {/* Optional site filter */}
-            <div className="flex items-center gap-2">
-              <Globe size={14} className="text-gray-400 shrink-0" aria-hidden="true" />
+          {/* Search form */}
+          <form onSubmit={handleOnlineSearch} className="flex gap-3 max-w-2xl" noValidate>
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Globe className="h-5 w-5 text-gray-400" aria-hidden="true" />
+              </div>
               <input
-                type="text"
-                placeholder="Optional: search a specific site, e.g. allrecipes.com"
-                value={onlineSite}
-                onChange={(e) => setOnlineSite(e.target.value)}
+                type="search"
+                placeholder='Try "chicken tikka", "beef stew", or "chocolate cake"'
+                value={onlineQuery}
+                onChange={(e) => setOnlineQuery(e.target.value)}
+                className="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                aria-label="Search for recipes"
                 disabled={onlineLoading}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors disabled:opacity-50"
-                aria-label="Limit search to a specific website"
               />
             </div>
-          </div>
+            <button
+              type="submit"
+              disabled={onlineLoading || !onlineQuery.trim()}
+              className="px-6 py-3 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 flex items-center gap-2 shrink-0"
+            >
+              {onlineLoading ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search size={16} aria-hidden="true" />
+                  Search
+                </>
+              )}
+            </button>
+          </form>
 
           {/* Loading skeleton */}
           {onlineLoading && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Array.from({ length: INTERNET_SEARCH_COUNT }).map((_, i) => (
+              {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm animate-pulse">
                   <div className="h-48 bg-gray-100" />
                   <div className="p-5 space-y-3">
@@ -454,7 +408,7 @@ export default function RecipeDiscovery() {
           {onlineError && !onlineLoading && (
             <EmptyState
               icon={<Search className="w-8 h-8" />}
-              title="No results"
+              title="No results found"
               description={onlineError}
             />
           )}
@@ -463,7 +417,7 @@ export default function RecipeDiscovery() {
           {!onlineLoading && onlineResults.length > 0 && (
             <>
               <p className="text-sm text-gray-500">
-                {onlineResults.length} recipe{onlineResults.length === 1 ? '' : 's'} found — click a card to preview, then save any you like.
+                {onlineResults.length} real recipe{onlineResults.length === 1 ? '' : 's'} found — click a card to preview, then save any you like.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {onlineResults.map((result, index) => {
@@ -478,16 +432,19 @@ export default function RecipeDiscovery() {
                       onView={() => setViewingOnlineResult(result)}
                       actionButton={
                         <div className="space-y-2">
-                          {/* Google search link — always works, no hallucination risk */}
-                          <a
-                            href={buildSearchUrl(result.title)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 text-xs text-primary hover:underline"
-                          >
-                            <ExternalLink size={11} aria-hidden="true" />
-                            {onlineSite.trim() ? `Find on ${onlineSite.trim()}` : 'Find on web'}
-                          </a>
+                          {/* Real source link from TheMealDB */}
+                          {result.sourceUrl && (
+                            <a
+                              href={result.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-xs text-primary hover:underline truncate"
+                              title={result.sourceUrl}
+                            >
+                              <ExternalLink size={11} aria-hidden="true" />
+                              View original recipe
+                            </a>
+                          )}
 
                           {/* Duplicate warning */}
                           {duplicate && !alreadySaved && (
@@ -527,27 +484,6 @@ export default function RecipeDiscovery() {
                   );
                 })}
               </div>
-
-              {/* Load more */}
-              <div className="flex justify-center pt-2">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                >
-                  {loadingMore ? (
-                    <>
-                      <Loader2 size={15} className="animate-spin" aria-hidden="true" />
-                      Loading more...
-                    </>
-                  ) : (
-                    <>
-                      <Search size={15} aria-hidden="true" />
-                      Show 5 more results
-                    </>
-                  )}
-                </button>
-              </div>
             </>
           )}
 
@@ -555,8 +491,8 @@ export default function RecipeDiscovery() {
           {!onlineLoading && onlineResults.length === 0 && !onlineError && (
             <EmptyState
               icon={<Globe className="w-8 h-8" />}
-              title="Find new recipes"
-              description="Search above, or paste a recipe URL below to import directly."
+              title="Search real recipes"
+              description="Powered by TheMealDB — thousands of real recipes with photos. Or paste a URL below to import any recipe from any site."
             />
           )}
 

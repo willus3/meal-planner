@@ -30,8 +30,5 @@ export const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
 /** Number of recipe recommendations Gemini should return per request. */
 export const RECOMMENDATION_COUNT = 6;
 
-/** Number of internet recipe suggestions Gemini should return per search. */
-export const INTERNET_SEARCH_COUNT = 5;
-
 /** Maximum number of past meal plans to load in the history view. */
 export const HISTORY_LIMIT = 12;

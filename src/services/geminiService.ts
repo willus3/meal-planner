@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import type { GoogleSearchRetrievalTool } from '@google/generative-ai';
 import type { Recipe } from '../types/recipe';
 
 /**
@@ -224,10 +223,11 @@ export async function extractRecipeFromUrl(
   if (!apiKey) throw new Error('VITE_GEMINI_API_KEY is not set in your .env.local file.');
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  // Google Search grounding lets Gemini fetch and read the live page
+  // google_search grounding lets Gemini fetch and read the live page
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const model = genAI.getGenerativeModel({
     model: 'gemini-2.5-flash',
-    tools: [{ googleSearchRetrieval: {} } as GoogleSearchRetrievalTool],
+    tools: [{ googleSearch: {} } as any],
   });
 
   let text: string;

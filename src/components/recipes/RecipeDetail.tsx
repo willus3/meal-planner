@@ -2,15 +2,25 @@ import { Clock, ChefHat, Leaf, Users } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Recipe } from '../../types/recipe';
 
+const RATINGS = [
+  { value: 1, emoji: '😬', label: 'Never Again' },
+  { value: 2, emoji: '😐', label: 'It Was OK' },
+  { value: 3, emoji: '😊', label: 'Pretty Good' },
+  { value: 4, emoji: '😋', label: 'Really Liked It' },
+  { value: 5, emoji: '🤩', label: 'Make It Weekly!' },
+] as const;
+
 interface RecipeDetailProps {
   recipe: Recipe;
+  /** If provided, shows the "How was it?" emoji rating section. */
+  onRate?: (rating: number) => void;
 }
 
 /**
  * Full recipe view — shown inside a Modal when the user taps a recipe card.
  * Displays the photo, metadata, ingredient list, and step-by-step instructions.
  */
-export default function RecipeDetail({ recipe }: RecipeDetailProps) {
+export default function RecipeDetail({ recipe, onRate }: RecipeDetailProps) {
   return (
     <div className="space-y-6">
 
@@ -63,6 +73,38 @@ export default function RecipeDetail({ recipe }: RecipeDetailProps) {
       {/* Description */}
       {recipe.description && (
         <p className="text-gray-600 text-sm leading-relaxed">{recipe.description}</p>
+      )}
+
+      {/* How was it? — emoji rating */}
+      {onRate && (
+        <div className="bg-gray-50 rounded-xl p-4">
+          <p className="text-sm font-semibold text-gray-700 mb-3 text-center">
+            {recipe.rating ? '⭐ Your Rating' : '🍴 How was it?'}
+          </p>
+          <div className="flex justify-center gap-2">
+            {RATINGS.map(({ value, emoji, label }) => (
+              <button
+                key={value}
+                onClick={() => onRate(value)}
+                aria-label={label}
+                className={cn(
+                  'flex flex-col items-center gap-1 px-2 py-2 rounded-xl transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary',
+                  recipe.rating === value
+                    ? 'bg-primary/10 scale-110 shadow-sm'
+                    : 'hover:bg-gray-100 hover:scale-110 opacity-50 hover:opacity-100'
+                )}
+              >
+                <span className="text-3xl leading-none">{emoji}</span>
+                <span className={cn(
+                  'text-[10px] font-semibold text-center leading-tight w-14',
+                  recipe.rating === value ? 'text-primary' : 'text-gray-400'
+                )}>
+                  {label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Ingredients */}

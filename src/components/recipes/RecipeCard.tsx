@@ -2,6 +2,14 @@ import type { Recipe } from '../../lib/recipes';
 import { Clock, Leaf, Pencil, Trash2, ChefHat } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
+const RATINGS = [
+  { value: 1, emoji: '😬', label: 'Never Again' },
+  { value: 2, emoji: '😐', label: 'It Was OK' },
+  { value: 3, emoji: '😊', label: 'Pretty Good' },
+  { value: 4, emoji: '😋', label: 'Really Liked It' },
+  { value: 5, emoji: '🤩', label: 'Make It Weekly!' },
+] as const;
+
 interface RecipeCardProps {
   recipe: Recipe;
   actionButton?: React.ReactNode;
@@ -11,9 +19,11 @@ interface RecipeCardProps {
   onEdit?: () => void;
   /** If provided, shows a delete icon button on the card. */
   onDelete?: () => void;
+  /** If provided, shows the emoji rating row on the card. */
+  onRate?: (rating: number) => void;
 }
 
-export default function RecipeCard({ recipe, actionButton, onView, onEdit, onDelete }: RecipeCardProps) {
+export default function RecipeCard({ recipe, actionButton, onView, onEdit, onDelete, onRate }: RecipeCardProps) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all flex flex-col h-full">
       {/* Image Header — clicking the photo opens the full recipe view */}
@@ -44,6 +54,12 @@ export default function RecipeCard({ recipe, actionButton, onView, onEdit, onDel
         <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-semibold shadow-sm text-gray-700">
           {recipe.effortLevel}
         </div>
+        {/* Rated emoji badge — bottom-left of image */}
+        {recipe.rating && (
+          <div className="absolute bottom-3 left-3 text-2xl drop-shadow-md select-none" title={RATINGS[recipe.rating - 1].label}>
+            {RATINGS[recipe.rating - 1].emoji}
+          </div>
+        )}
         {/* Edit / Delete overlay buttons — only rendered if handlers are passed */}
         {(onEdit || onDelete) && (
           <div className="absolute top-3 left-3 flex gap-1.5">
@@ -102,6 +118,33 @@ export default function RecipeCard({ recipe, actionButton, onView, onEdit, onDel
             </span>
           ))}
         </div>
+
+        {/* Emoji rating row — only shown when onRate is provided */}
+        {onRate && (
+          <div className="mb-3">
+            <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 mb-1.5">
+              {recipe.rating ? 'Your rating' : 'Rate this recipe'}
+            </p>
+            <div className="flex gap-1">
+              {RATINGS.map(({ value, emoji, label }) => (
+                <button
+                  key={value}
+                  onClick={() => onRate(value)}
+                  title={label}
+                  aria-label={label}
+                  className={cn(
+                    'flex-1 text-center text-xl transition-all duration-150 rounded-lg py-1 hover:scale-125 focus:outline-none focus:ring-2 focus:ring-primary',
+                    recipe.rating === value
+                      ? 'scale-125 bg-primary/10'
+                      : 'opacity-40 hover:opacity-100'
+                  )}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Action Button Injection */}
         <div className="pt-3 border-t border-gray-100 w-full">

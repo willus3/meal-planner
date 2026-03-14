@@ -50,4 +50,6 @@ export interface Recipe {
   createdAt: Date;
   /** Original URL for internet-sourced recipes — links back to the source page. */
   sourceUrl?: string;
+  /** User's emoji rating 1–5 after cooking the recipe. */
+  rating?: number;
 }

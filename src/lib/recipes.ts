@@ -20,6 +20,8 @@ export interface Recipe {
   dietaryTags: DietaryPreference[];
   ingredients: Ingredient[];
   instructions: string[];
+  /** User's emoji rating 1–5 after cooking the recipe. */
+  rating?: number;
 }
 
 export const MOCK_RECIPES: Recipe[] = [

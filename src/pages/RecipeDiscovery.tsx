@@ -101,6 +101,15 @@ export default function RecipeDiscovery() {
   // RecipeForm omits 'source' — we add it here before saving
   type FormData = Omit<Recipe, 'id' | 'createdAt' | 'source'>;
 
+  /** Saves an emoji rating (1–5) to a library recipe. */
+  const handleRate = async (recipeId: string, rating: number) => {
+    try {
+      await updateRecipe(recipeId, { rating });
+    } catch {
+      setActionError('Failed to save rating. Please try again.');
+    }
+  };
+
   // ── Library handlers ───────────────────────────────────────────────────────
 
   const handleAdd = async (data: FormData) => {
@@ -334,6 +343,7 @@ export default function RecipeDiscovery() {
                   onView={() => setViewingRecipe(recipe)}
                   onEdit={() => setEditingRecipe(recipe)}
                   onDelete={() => setDeleteConfirmId(recipe.id)}
+                  onRate={(rating) => handleRate(recipe.id, rating)}
                   actionButton={
                     <button
                       onClick={() => setAssigningRecipe(recipe)}
@@ -658,6 +668,7 @@ export default function RecipeDiscovery() {
                   key={recipe.id}
                   recipe={recipe as unknown as import('../lib/recipes').Recipe}
                   onView={() => setViewingRecipe(recipe)}
+                  onRate={(rating) => handleRate(recipe.id, rating)}
                   actionButton={
                     <button
                       onClick={() => setAssigningRecipe(recipe)}
@@ -682,7 +693,16 @@ export default function RecipeDiscovery() {
         title={viewingRecipe?.title ?? ''}
         maxWidth="max-w-2xl"
       >
-        {viewingRecipe && <RecipeDetail recipe={viewingRecipe} />}
+        {viewingRecipe && (
+          <RecipeDetail
+            recipe={viewingRecipe}
+            onRate={(rating) => {
+              // Optimistic local update so the emoji highlights immediately
+              setViewingRecipe((prev) => prev ? { ...prev, rating } : prev);
+              handleRate(viewingRecipe.id, rating);
+            }}
+          />
+        )}
       </Modal>
 
       {/* Preview Online Result Modal */}

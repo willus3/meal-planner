@@ -51,6 +51,7 @@ export default function RecipeDiscovery() {
   const [urlError, setUrlError] = useState<string | null>(null);
   const [urlSaved, setUrlSaved] = useState(false);
   const [urlSaving, setUrlSaving] = useState(false);
+  const [urlPhotoUrl, setUrlPhotoUrl] = useState('');
 
   // ── Online result preview state ────────────────────────────────────────────
   const [viewingOnlineResult, setViewingOnlineResult] = useState<OnlineResult | null>(null);
@@ -194,6 +195,7 @@ export default function RecipeDiscovery() {
     setUrlError(null);
     setUrlResult(null);
     setUrlSaved(false);
+    setUrlPhotoUrl('');
 
     try {
       const result = await extractRecipeFromUrl(urlInput.trim());
@@ -212,7 +214,9 @@ export default function RecipeDiscovery() {
     setActionError(null);
     try {
       const title = isDuplicate(urlResult.title) ? `${urlResult.title} (Copy)` : urlResult.title;
-      await addRecipe({ ...urlResult, title, source: 'internet' });
+      // Use the manually entered photo URL if provided, otherwise keep whatever Gemini extracted
+      const imageUrl = urlPhotoUrl.trim() || urlResult.imageUrl;
+      await addRecipe({ ...urlResult, title, imageUrl, source: 'internet' });
       setUrlSaved(true);
     } catch {
       setActionError('Failed to save recipe. Please try again.');
@@ -573,6 +577,23 @@ export default function RecipeDiscovery() {
                           <ExternalLink size={11} aria-hidden="true" />
                           View original page
                         </a>
+                      )}
+
+                      {/* Manual photo URL — for sites that show a video instead of a photo */}
+                      {!urlSaved && (
+                        <div className="space-y-1 pt-1">
+                          <input
+                            type="url"
+                            placeholder="Photo URL (optional)"
+                            value={urlPhotoUrl}
+                            onChange={(e) => setUrlPhotoUrl(e.target.value)}
+                            className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+                            aria-label="Optional photo URL"
+                          />
+                          <p className="text-[10px] text-gray-400 leading-tight">
+                            No photo? On the recipe site, right-click the dish image → <strong>"Copy image address"</strong> and paste it above.
+                          </p>
+                        </div>
                       )}
 
                       {urlSaved ? (

@@ -11,6 +11,8 @@ import { persist } from 'zustand/middleware';
  * in Firestore; the check state lives here.
  */
 interface UiStore {
+  /** The plan ID that checkedItemIds / hiddenItemIds belong to. */
+  activePlanId: string | null;
   /** IDs of shopping list items the user has checked off. */
   checkedItemIds: string[];
   /**
@@ -19,6 +21,11 @@ interface UiStore {
    */
   hiddenItemIds: string[];
 
+  /**
+   * Call before reading checked/hidden state. If the plan ID changed since
+   * the last session, stale state is cleared automatically.
+   */
+  syncPlanId: (planId: string) => void;
   toggleItem: (id: string) => void;
   hideItem: (id: string) => void;
   clearChecked: () => void;
@@ -28,9 +35,16 @@ interface UiStore {
 
 export const useUiStore = create<UiStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+      activePlanId: null,
       checkedItemIds: [],
       hiddenItemIds: [],
+
+      syncPlanId: (planId) => {
+        if (get().activePlanId !== planId) {
+          set({ activePlanId: planId, checkedItemIds: [], hiddenItemIds: [] });
+        }
+      },
 
       toggleItem: (id) =>
         set((state) => ({

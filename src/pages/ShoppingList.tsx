@@ -17,11 +17,20 @@ export default function ShoppingList() {
   const { user } = useAuth();
   const { plan, loading: planLoading } = useMealPlan();
   const { recipes, loading: recipesLoading } = useRecipes();
-  const { checkedItemIds, hiddenItemIds, toggleItem, hideItem, clearChecked } = useUiStore();
+  const { checkedItemIds, hiddenItemIds, toggleItem, hideItem, clearChecked, syncPlanId } = useUiStore();
 
   // Manual items are loaded from Firestore (stored on the plan doc) and kept in local state.
   const [manualItems, setManualItems] = useState<ShoppingItem[]>([]);
   const [manualItemsReady, setManualItemsReady] = useState(false);
+
+  // When the plan loads (or changes), sync the UI store's plan ID.
+  // If it differs from what was persisted in localStorage, checked/hidden
+  // state is auto-cleared — no manual cache clearing needed.
+  useEffect(() => {
+    if (plan?.id) {
+      syncPlanId(plan.id);
+    }
+  }, [plan?.id, syncPlanId]);
 
   // Initialize manual items from the plan once it loads
   useEffect(() => {
@@ -189,8 +198,7 @@ export default function ShoppingList() {
       {/* Grouped list */}
       {!isEmpty && (
         <div className="space-y-6">
-          {(CATEGORY_ORDER as IngredientCategory[]).map((category) => {
-            const items = allVisibleItems.filter((item) => item.category === category);
+          {buildCategoryGroups(allVisibleItems).map(({ label, items }) => {
             if (items.length === 0) return null;
 
             // Sort: unchecked first (alpha), checked last (alpha)
@@ -205,9 +213,9 @@ export default function ShoppingList() {
             const checkedCount = sorted.filter((i) => checkedItemIds.includes(i.id)).length;
 
             return (
-              <div key={category} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              <div key={label} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                 <div className="bg-gray-50 px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <h2 className="font-bold text-gray-800">{category}</h2>
+                  <h2 className="font-bold text-gray-800">{label}</h2>
                   <span className="text-xs font-semibold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">
                     {checkedCount}/{items.length}
                   </span>
@@ -276,61 +284,47 @@ export default function ShoppingList() {
               </div>
             );
           })}
-
-          {/* Manual items that don't match any standard category */}
-          {(() => {
-            const uncategorised = allVisibleItems.filter(
-              (item) => item.isManual && !(CATEGORY_ORDER as string[]).includes(item.category)
-            );
-            if (uncategorised.length === 0) return null;
-            return (
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="bg-gray-50 px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <h2 className="font-bold text-gray-800">Other</h2>
-                  <span className="text-xs font-semibold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">
-                    {uncategorised.length}
-                  </span>
-                </div>
-                <ul className="divide-y divide-gray-50">
-                  {uncategorised.map((item) => {
-                    const isChecked = checkedItemIds.includes(item.id);
-                    return (
-                      <li key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                        <div className={cn('flex items-center gap-3 px-4 sm:px-5 py-3', isChecked && 'opacity-50')}>
-                          <label className="relative flex-shrink-0 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              className="peer sr-only"
-                              checked={isChecked}
-                              onChange={() => toggleItem(item.id)}
-                              aria-label={`Mark ${item.name} as ${isChecked ? 'needed' : 'got it'}`}
-                            />
-                            <div className="w-5 h-5 border-2 rounded transition-colors peer-checked:bg-primary peer-checked:border-primary border-gray-300 hover:border-primary">
-                              {isChecked && <Check size={14} className="text-white absolute top-[3px] left-[2px] stroke-[3]" aria-hidden="true" />}
-                            </div>
-                          </label>
-                          <span className={cn('flex-1 font-medium text-gray-900 text-sm', isChecked && 'line-through text-gray-400')}>
-                            {item.name}
-                          </span>
-                          <button
-                            onClick={() => handleDeleteItem(item)}
-                            className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
-                            aria-label={`Remove ${item.name}`}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            );
-          })()}
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * Groups items by category, mapping any non-standard categories (e.g. from
+ * Gemini) into the closest known category so no items are silently dropped.
+ * Known categories appear in CATEGORY_ORDER; anything unrecognised falls
+ * into "Other".
+ */
+function buildCategoryGroups(items: ShoppingItem[]): { label: string; items: ShoppingItem[] }[] {
+  const groups = new Map<string, ShoppingItem[]>();
+  for (const cat of CATEGORY_ORDER) groups.set(cat, []);
+
+  for (const item of items) {
+    const mapped = normalizeCategory(item.category);
+    groups.get(mapped)!.push(item);
+  }
+
+  return Array.from(groups.entries()).map(([label, groupItems]) => ({ label, items: groupItems }));
+}
+
+/**
+ * Maps non-standard ingredient categories (often returned by Gemini) to the
+ * closest match in CATEGORY_ORDER. Returns "Other" for anything unrecognised.
+ */
+function normalizeCategory(category: string): IngredientCategory {
+  if ((CATEGORY_ORDER as string[]).includes(category)) return category as IngredientCategory;
+
+  const c = category.toLowerCase();
+  if (['seafood', 'poultry', 'protein', 'fish', 'meat & seafood', 'deli'].includes(c)) return 'Meat';
+  if (['fruits', 'fruit', 'vegetables', 'vegetable', 'fresh produce', 'herbs', 'fresh herbs'].includes(c)) return 'Produce';
+  if (['grains', 'grain', 'pasta', 'rice', 'canned goods', 'canned', 'condiments', 'condiment', 'oils', 'oil', 'sauces', 'sauce', 'baking', 'baking supplies', 'dry goods', 'staples', 'legumes', 'nuts', 'cereals'].includes(c)) return 'Pantry';
+  if (['seasoning', 'seasonings', 'herbs & spices', 'spice', 'herb'].includes(c)) return 'Spices';
+  if (['milk', 'eggs', 'cheese', 'dairy & eggs', 'dairy products'].includes(c)) return 'Dairy';
+  if (['bread', 'breads', 'baked goods'].includes(c)) return 'Bakery';
+  if (['frozen foods', 'freezer'].includes(c)) return 'Frozen';
+
+  return 'Other';
 }
 
 /** Rounds a number to 2 decimal places and strips trailing zeros. */
